@@ -63,6 +63,63 @@ describe("manage adapter", () => {
     expect(renders[0]).toContain("diagnose  enabled");
     expect(renders[1]).toContain("diagnose  disabled");
   });
+
+  it("uses up and down keys to toggle the selected skill, not always the first skill", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const codex = integration("codex", join(workspace, "codex"), true);
+    await mkdir(join(codex.activeSkillsPath, "alpha"), { recursive: true });
+    await mkdir(join(codex.activeSkillsPath, "zulu"), { recursive: true });
+    await writeFile(join(codex.activeSkillsPath, "alpha", "SKILL.md"), "# Alpha\n");
+    await writeFile(join(codex.activeSkillsPath, "zulu", "SKILL.md"), "# Zulu\n");
+    const keys = ["\u001B[B", " ", "q"];
+
+    const output = await runManageSession([codex], {
+      readKey: async () => keys.shift() ?? "q",
+    });
+
+    expect(output).toContain("alpha  enabled");
+    expect(output).toContain("zulu  disabled");
+  });
+
+  it("switches tabs before toggling a selected skill", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const codex = integration("codex", join(workspace, "codex"), true);
+    const claude = integration("claude", join(workspace, "claude"), true);
+    await mkdir(join(codex.activeSkillsPath, "codex-skill"), { recursive: true });
+    await mkdir(join(claude.activeSkillsPath, "claude-skill"), { recursive: true });
+    await writeFile(join(codex.activeSkillsPath, "codex-skill", "SKILL.md"), "# Codex\n");
+    await writeFile(join(claude.activeSkillsPath, "claude-skill", "SKILL.md"), "# Claude\n");
+    const keys = ["\t", " ", "q"];
+
+    const output = await runManageSession([codex, claude], {
+      readKey: async () => keys.shift() ?? "q",
+    });
+
+    expect(output).toContain("codex-skill  enabled");
+    expect(output).toContain("claude-skill  disabled");
+  });
+
+  it("shows active tab and selected skill markers while rendering an interactive session", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const codex = integration("codex", join(workspace, "codex"), true);
+    const claude = integration("claude", join(workspace, "claude"), true);
+    await mkdir(join(codex.activeSkillsPath, "diagnose"), { recursive: true });
+    await mkdir(join(claude.activeSkillsPath, "handoff"), { recursive: true });
+    await writeFile(join(codex.activeSkillsPath, "diagnose", "SKILL.md"), "# Diagnose\n");
+    await writeFile(join(claude.activeSkillsPath, "handoff", "SKILL.md"), "# Handoff\n");
+    const keys = ["\t", "q"];
+    const renders: string[] = [];
+
+    await runManageSession([codex, claude], {
+      readKey: async () => keys.shift() ?? "q",
+      render: (screen) => renders.push(screen),
+    });
+
+    expect(renders[0]).toContain("[Codex]");
+    expect(renders[0]).toContain("> diagnose  enabled");
+    expect(renders[1]).toContain("[Claude]");
+    expect(renders[1]).toContain("> handoff  enabled");
+  });
 });
 
 function integration(

@@ -8,6 +8,7 @@ export type UninstallStatus =
   | "not-installed"
   | "not-activated"
   | "needs-confirmation"
+  | "would-need-confirmation"
   | "would-uninstall";
 
 export type UninstallResult = {
@@ -47,6 +48,17 @@ export async function uninstallSkill(
     };
   }
 
+  const needsConfirmation = await requiresConfirmation(paths);
+
+  if (options.dryRun === true && needsConfirmation) {
+    return {
+      integrationId: integration.id,
+      skillIdentity,
+      status: "would-need-confirmation",
+      removedPaths: paths,
+    };
+  }
+
   if (options.dryRun === true) {
     return {
       integrationId: integration.id,
@@ -56,7 +68,7 @@ export async function uninstallSkill(
     };
   }
 
-  if (options.yes !== true && (await requiresConfirmation(paths))) {
+  if (options.yes !== true && needsConfirmation) {
     return {
       integrationId: integration.id,
       skillIdentity,

@@ -68,4 +68,28 @@ describe("resolveSkillArtifactWithCli", () => {
     expect(removedWorkspaces).toHaveLength(1);
     await expect(stat(removedWorkspaces[0]!)).rejects.toMatchObject({ code: "ENOENT" });
   });
+
+  it("reports verbose resolver diagnostics", async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), "xcode-skills-test-"));
+    const diagnostics: string[] = [];
+
+    await expect(
+      resolveSkillArtifactWithCli("diagnose", {
+        tempRoot,
+        skillsCliPath: "/fake/skills/bin/cli.mjs",
+        onVerbose: (line) => diagnostics.push(line),
+        runCommand: async (command) => {
+          const skillPath = join(command.cwd, ".agents", "skills", "diagnose");
+          await mkdir(skillPath, { recursive: true });
+          await writeFile(join(skillPath, "SKILL.md"), "# Diagnose\n");
+          return { exitCode: 0, stdout: "resolver out", stderr: "resolver err" };
+        },
+      }),
+    ).resolves.toMatchObject({ skillIdentity: "diagnose" });
+
+    expect(diagnostics.join("\n")).toContain("/fake/skills/bin/cli.mjs add diagnose --copy --yes");
+    expect(diagnostics.join("\n")).toContain("workspace:");
+    expect(diagnostics.join("\n")).toContain("stdout: resolver out");
+    expect(diagnostics.join("\n")).toContain("stderr: resolver err");
+  });
 });

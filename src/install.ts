@@ -17,6 +17,7 @@ export type SkillArtifactResolver = (
 export type InstallStatus =
   | "installed"
   | "would-install"
+  | "would-need-confirmation"
   | "not-activated"
   | "needs-confirmation";
 
@@ -32,6 +33,7 @@ export async function installSkill(options: {
   resolver: SkillArtifactResolver;
   dryRun?: boolean;
   yes?: boolean;
+  confirmOverwrite?: (path: string) => Promise<boolean>;
 }): Promise<InstallResult[]> {
   const artifact = await options.resolver(options.skillSpec);
   try {
@@ -51,12 +53,31 @@ export async function installSkill(options: {
       const activePath = join(integration.activeSkillsPath, artifact.skillIdentity);
       const disabledPath = join(integration.disabledSkillsPath, artifact.skillIdentity);
 
-      if (
-        options.dryRun !== true &&
+      const needsConfirmation =
         options.yes !== true &&
         (await pathExists(activePath)) &&
-        !(await pathExists(join(activePath, "skills-lock.json")))
-      ) {
+        !(await pathExists(join(activePath, "skills-lock.json")));
+
+      if (needsConfirmation && options.dryRun === true) {
+        results.push({
+          integrationId: integration.id,
+          skillIdentity: artifact.skillIdentity,
+          status: "would-need-confirmation",
+        });
+        continue;
+      }
+
+      if (needsConfirmation && options.confirmOverwrite !== undefined) {
+        const confirmed = await options.confirmOverwrite(activePath);
+        if (!confirmed) {
+          results.push({
+            integrationId: integration.id,
+            skillIdentity: artifact.skillIdentity,
+            status: "needs-confirmation",
+          });
+          continue;
+        }
+      } else if (needsConfirmation) {
         results.push({
           integrationId: integration.id,
           skillIdentity: artifact.skillIdentity,

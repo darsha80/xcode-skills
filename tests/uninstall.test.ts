@@ -59,6 +59,22 @@ describe("uninstallSkill", () => {
     await expect(stat(activePath)).resolves.toBeDefined();
   });
 
+  it("reports confirmation requirements during dry run for no-lock folders", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const codex = integration("codex", join(workspace, "codex"), true);
+    const activePath = join(codex.activeSkillsPath, "diagnose");
+    await mkdir(activePath, { recursive: true });
+    await writeFile(join(activePath, "SKILL.md"), "# Manual\n");
+
+    await expect(uninstallSkill(codex, "diagnose", { dryRun: true })).resolves.toEqual({
+      integrationId: "codex",
+      skillIdentity: "diagnose",
+      status: "would-need-confirmation",
+      removedPaths: [activePath],
+    });
+    await expect(stat(activePath)).resolves.toBeDefined();
+  });
+
   it("requires confirmation before deleting a no-lock Skill Folder", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
     const codex = integration("codex", join(workspace, "codex"), true);

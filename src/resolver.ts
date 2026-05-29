@@ -25,6 +25,7 @@ export type ResolveWithCliOptions = {
   skillsCliPath?: string;
   runCommand?: CommandRunner;
   removeWorkspace?: (path: string) => Promise<void>;
+  onVerbose?: (line: string) => void;
 };
 
 export async function resolveSkillArtifactWithCli(
@@ -39,11 +40,20 @@ export async function resolveSkillArtifactWithCli(
   const skillsCliPath = options.skillsCliPath ?? defaultSkillsCliPath();
 
   try {
-    const result = await runCommand({
+    const invocation = {
       executable: process.execPath,
       args: [skillsCliPath, "add", skillSpec, "--copy", "--yes"],
       cwd: workspace,
-    });
+    };
+    options.onVerbose?.(`workspace: ${workspace}`);
+    options.onVerbose?.(`command: ${invocation.executable} ${invocation.args.join(" ")}`);
+    const result = await runCommand(invocation);
+    if (result.stdout.length > 0) {
+      options.onVerbose?.(`stdout: ${result.stdout.trim()}`);
+    }
+    if (result.stderr.length > 0) {
+      options.onVerbose?.(`stderr: ${result.stderr.trim()}`);
+    }
 
     if (result.exitCode !== 0) {
       throw new Error(result.stderr || result.stdout || `skills add failed with exit code ${result.exitCode}`);

@@ -216,6 +216,33 @@ describe("installSkill", () => {
       "# New Diagnose\n",
     );
   });
+
+  it("reports confirmation requirements during dry run instead of prompting", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const artifactPath = join(workspace, "artifact", "diagnose");
+    await mkdir(artifactPath, { recursive: true });
+    await writeFile(join(artifactPath, "SKILL.md"), "# New Diagnose\n");
+
+    const codex = integration("codex", join(workspace, "codex"), true);
+    const existingPath = join(codex.activeSkillsPath, "diagnose");
+    await mkdir(existingPath, { recursive: true });
+    await writeFile(join(existingPath, "SKILL.md"), "# Manual Diagnose\n");
+
+    const result = await installSkill({
+      skillSpec: "diagnose",
+      integrations: [codex],
+      dryRun: true,
+      resolver: async () => ({ skillIdentity: "diagnose", artifactPath }),
+    });
+
+    expect(result).toEqual([
+      {
+        integrationId: "codex",
+        skillIdentity: "diagnose",
+        status: "would-need-confirmation",
+      },
+    ]);
+  });
 });
 
 function integration(

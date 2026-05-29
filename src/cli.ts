@@ -6,6 +6,7 @@ import type { SkillArtifactResolver } from "./install.js";
 import { type InstallResult, installSkill } from "./install.js";
 import { resolveIntegrationRoots, type IntegrationRoot } from "./integrations.js";
 import { formatListHuman, formatListJson, listSkillInstallations } from "./list.js";
+import { buildManageView, formatManageView, runManageSession } from "./manage.js";
 import { type LifecycleResult, disableSkill, enableSkill } from "./lifecycle.js";
 import { resolveSkillArtifactWithCli } from "./resolver.js";
 import { selectTargetIntegrations, type PromptForTarget, type TargetSelection } from "./targets.js";
@@ -20,7 +21,10 @@ export type CliResult = {
 export type CliDependencies = {
   resolveIntegrationRoots?: () => Promise<IntegrationRoot[]>;
   resolver?: SkillArtifactResolver;
+  createResolver?: (onVerbose?: (line: string) => void) => SkillArtifactResolver;
   promptForTarget?: PromptForTarget;
+  confirm?: (message: string) => Promise<boolean>;
+  readManageKey?: () => Promise<string>;
 };
 
 export async function runCli(
@@ -30,15 +34,41 @@ export async function runCli(
   try {
     const parsed = parseArgs(argv);
     const integrations = await (dependencies.resolveIntegrationRoots ?? resolveIntegrationRoots)();
+    const verboseLines: string[] = [];
 
     if (parsed.command === "list") {
       const entries = await listSkillInstallations(integrations, { target: parsed.target });
       return ok(parsed.json ? formatListJson(entries) : formatListHuman(entries));
     }
 
+    if (parsed.command === "manage") {
+      const readKey =
+        dependencies.readManageKey ??
+        (process.stdin.isTTY ? readManageKeyFromStdin : undefined);
+      if (readKey !== undefined) {
+        const interactiveTty = dependencies.readManageKey === undefined && process.stdin.isTTY;
+        const output = await runManageSession(integrations, {
+          readKey,
+          render: interactiveTty
+            ? (screen) => {
+                process.stdout.write(`\x1Bc${screen}\n`);
+              }
+            : undefined,
+        });
+        return ok(interactiveTty ? "" : output);
+      }
+      return ok(formatManageView(await buildManageView(integrations)));
+    }
+
     const skillArg = parsed.args[0];
     if (skillArg === undefined) {
       return fail(`Missing required argument for ${parsed.command}`);
+    }
+    if (
+      ["install", "uninstall", "enable", "disable"].includes(parsed.command) &&
+      parsed.args.length !== 1
+    ) {
+      return fail(`${parsed.command} accepts exactly one skill argument`);
     }
 
     const selectedIntegrations = await selectTargetIntegrations({
@@ -48,29 +78,40 @@ export async function runCli(
     });
 
     if (parsed.command === "install") {
+      const resolver =
+        dependencies.resolver ??
+        dependencies.createResolver?.((line) => verboseLines.push(line)) ??
+        ((skillSpec: string) =>
+          resolveSkillArtifactWithCli(skillSpec, {
+            onVerbose: parsed.verbose ? (line) => verboseLines.push(line) : undefined,
+          }));
       const results = await installSkill({
         skillSpec: skillArg,
         integrations: selectedIntegrations,
-        resolver: dependencies.resolver ?? resolveSkillArtifactWithCli,
+        resolver,
         dryRun: parsed.dryRun,
         yes: parsed.yes,
+        confirmOverwrite:
+          parsed.yes || parsed.dryRun
+            ? undefined
+            : (path) => confirmWithDependencies(dependencies, `overwrite manual Skill Folder?\n  ${path}`),
       });
-      return ok(formatInstallResults(results));
+      return ok(withVerbose(formatInstallResults(results), parsed.verbose ? verboseLines : []));
     }
 
     if (parsed.command === "enable" || parsed.command === "disable") {
       const results = await Promise.all(
         selectedIntegrations.map((integration) =>
           parsed.command === "enable"
-            ? enableSkill(integration, skillArg)
-            : disableSkill(integration, skillArg),
+            ? enableSkill(integration, skillArg, { dryRun: parsed.dryRun })
+            : disableSkill(integration, skillArg, { dryRun: parsed.dryRun }),
         ),
       );
       return ok(formatLifecycleResults(results));
     }
 
     if (parsed.command === "uninstall") {
-      const results = await Promise.all(
+      let results = await Promise.all(
         selectedIntegrations.map((integration) =>
           uninstallSkill(integration, skillArg, {
             dryRun: parsed.dryRun,
@@ -78,6 +119,24 @@ export async function runCli(
           }),
         ),
       );
+      if (!parsed.dryRun && !parsed.yes && results.some((result) => result.status === "needs-confirmation")) {
+        const confirmed = await confirmWithDependencies(
+          dependencies,
+          [
+            "delete these Skill Installation paths?",
+            ...results.flatMap((result) => result.removedPaths.map((path) => `  ${path}`)),
+          ].join("\n"),
+        );
+        if (confirmed) {
+          results = await Promise.all(
+            selectedIntegrations.map((integration) =>
+              uninstallSkill(integration, skillArg, {
+                yes: true,
+              }),
+            ),
+          );
+        }
+      }
       return ok(formatUninstallResults(results));
     }
 
@@ -161,8 +220,25 @@ function formatLifecycleResults(results: LifecycleResult[]): string {
 
 function formatUninstallResults(results: UninstallResult[]): string {
   return results
-    .map((result) => `${displayIntegration(result.integrationId)}: ${result.status} ${result.skillIdentity}`)
+    .map((result) => {
+      const header = `${displayIntegration(result.integrationId)}: ${result.status} ${result.skillIdentity}`;
+      if (
+        !["needs-confirmation", "would-need-confirmation", "would-uninstall"].includes(result.status) ||
+        result.removedPaths.length === 0
+      ) {
+        return header;
+      }
+      return [header, ...result.removedPaths.map((path) => `  ${path}`)].join("\n");
+    })
     .join("\n");
+}
+
+function withVerbose(stdout: string, verboseLines: string[]): string {
+  if (verboseLines.length === 0) {
+    return stdout;
+  }
+
+  return [stdout, "", "Verbose", ...verboseLines].join("\n");
 }
 
 function displayIntegration(id: IntegrationRoot["id"]): string {
@@ -201,4 +277,52 @@ async function promptForTargetFromStdin(): Promise<TargetSelection> {
   } finally {
     readline.close();
   }
+}
+
+async function confirmWithDependencies(
+  dependencies: CliDependencies,
+  message: string,
+): Promise<boolean> {
+  if (dependencies.confirm !== undefined) {
+    return dependencies.confirm(message);
+  }
+
+  return confirmFromStdin(message);
+}
+
+async function confirmFromStdin(message: string): Promise<boolean> {
+  const readline = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    const answer = (await readline.question(`${message}\nContinue? (y/N): `))
+      .trim()
+      .toLowerCase();
+    return answer === "y" || answer === "yes";
+  } finally {
+    readline.close();
+  }
+}
+
+async function readManageKeyFromStdin(): Promise<string> {
+  const stdin = process.stdin;
+  if (stdin.setRawMode !== undefined) {
+    stdin.setRawMode(true);
+  }
+  stdin.resume();
+  stdin.setEncoding("utf8");
+
+  return new Promise((resolve) => {
+    const onData = (chunk: string) => {
+      stdin.off("data", onData);
+      if (stdin.setRawMode !== undefined) {
+        stdin.setRawMode(false);
+      }
+      stdin.pause();
+      resolve(chunk === "\u0003" ? "q" : chunk);
+    };
+    stdin.on("data", onData);
+  });
 }

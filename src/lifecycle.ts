@@ -6,6 +6,8 @@ import type { IntegrationRoot } from "./integrations.js";
 export type LifecycleStatus =
   | "enabled"
   | "disabled"
+  | "would-enable"
+  | "would-disable"
   | "already-enabled"
   | "already-disabled"
   | "not-activated"
@@ -22,6 +24,7 @@ export type LifecycleResult = {
 export async function disableSkill(
   integration: IntegrationRoot,
   skillIdentity: string,
+  options: { dryRun?: boolean } = {},
 ): Promise<LifecycleResult> {
   if (!integration.activated) {
     return {
@@ -68,6 +71,14 @@ export async function disableSkill(
     };
   }
 
+  if (options.dryRun === true) {
+    return {
+      integrationId: integration.id,
+      skillIdentity,
+      status: "would-disable",
+    };
+  }
+
   await mkdir(integration.disabledSkillsPath, { recursive: true });
   await rename(activePath, disabledPath);
 
@@ -81,6 +92,7 @@ export async function disableSkill(
 export async function enableSkill(
   integration: IntegrationRoot,
   skillIdentity: string,
+  options: { dryRun?: boolean } = {},
 ): Promise<LifecycleResult> {
   if (!integration.activated) {
     return {
@@ -124,6 +136,14 @@ export async function enableSkill(
       integrationId: integration.id,
       skillIdentity,
       status: "suspicious",
+    };
+  }
+
+  if (options.dryRun === true) {
+    return {
+      integrationId: integration.id,
+      skillIdentity,
+      status: "would-enable",
     };
   }
 

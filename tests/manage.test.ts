@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 
 import type { IntegrationRoot } from "../src/integrations.js";
-import { buildManageView, toggleManagedSkill } from "../src/manage.js";
+import { buildManageView, runManageSession, toggleManagedSkill } from "../src/manage.js";
 
 describe("manage adapter", () => {
   it("builds Codex and Claude tabs and marks inactive integrations", async () => {
@@ -45,6 +45,23 @@ describe("manage adapter", () => {
       status: "disabled",
     });
     await expect(stat(join(codex.disabledSkillsPath, "diagnose"))).resolves.toBeDefined();
+  });
+
+  it("renders before and after keyboard toggles", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const codex = integration("codex", join(workspace, "codex"), true);
+    await mkdir(join(codex.activeSkillsPath, "diagnose"), { recursive: true });
+    await writeFile(join(codex.activeSkillsPath, "diagnose", "SKILL.md"), "# Diagnose\n");
+    const keys = [" ", "q"];
+    const renders: string[] = [];
+
+    await runManageSession([codex], {
+      readKey: async () => keys.shift() ?? "q",
+      render: (screen) => renders.push(screen),
+    });
+
+    expect(renders[0]).toContain("diagnose  enabled");
+    expect(renders[1]).toContain("diagnose  disabled");
   });
 });
 

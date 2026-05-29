@@ -7,6 +7,7 @@ import type { IntegrationRoot } from "./integrations.js";
 export type ResolvedSkillArtifact = {
   skillIdentity: string;
   artifactPath: string;
+  cleanup?: () => Promise<void>;
 };
 
 export type SkillArtifactResolver = (
@@ -33,57 +34,61 @@ export async function installSkill(options: {
   yes?: boolean;
 }): Promise<InstallResult[]> {
   const artifact = await options.resolver(options.skillSpec);
-  await validateArtifact(artifact);
-  const results: InstallResult[] = [];
+  try {
+    await validateArtifact(artifact);
+    const results: InstallResult[] = [];
 
-  for (const integration of options.integrations) {
-    if (!integration.activated) {
+    for (const integration of options.integrations) {
+      if (!integration.activated) {
+        results.push({
+          integrationId: integration.id,
+          skillIdentity: artifact.skillIdentity,
+          status: "not-activated",
+        });
+        continue;
+      }
+
+      const activePath = join(integration.activeSkillsPath, artifact.skillIdentity);
+      const disabledPath = join(integration.disabledSkillsPath, artifact.skillIdentity);
+
+      if (
+        options.dryRun !== true &&
+        options.yes !== true &&
+        (await pathExists(activePath)) &&
+        !(await pathExists(join(activePath, "skills-lock.json")))
+      ) {
+        results.push({
+          integrationId: integration.id,
+          skillIdentity: artifact.skillIdentity,
+          status: "needs-confirmation",
+        });
+        continue;
+      }
+
+      if (options.dryRun === true) {
+        results.push({
+          integrationId: integration.id,
+          skillIdentity: artifact.skillIdentity,
+          status: "would-install",
+        });
+        continue;
+      }
+
+      await mkdir(integration.activeSkillsPath, { recursive: true });
+      await copyDirectoryReplacing(artifact.artifactPath, activePath);
+      await removePath(disabledPath);
+
       results.push({
         integrationId: integration.id,
         skillIdentity: artifact.skillIdentity,
-        status: "not-activated",
+        status: "installed",
       });
-      continue;
     }
 
-    const activePath = join(integration.activeSkillsPath, artifact.skillIdentity);
-    const disabledPath = join(integration.disabledSkillsPath, artifact.skillIdentity);
-
-    if (
-      options.dryRun !== true &&
-      options.yes !== true &&
-      (await pathExists(activePath)) &&
-      !(await pathExists(join(activePath, "skills-lock.json")))
-    ) {
-      results.push({
-        integrationId: integration.id,
-        skillIdentity: artifact.skillIdentity,
-        status: "needs-confirmation",
-      });
-      continue;
-    }
-
-    if (options.dryRun === true) {
-      results.push({
-        integrationId: integration.id,
-        skillIdentity: artifact.skillIdentity,
-        status: "would-install",
-      });
-      continue;
-    }
-
-    await mkdir(integration.activeSkillsPath, { recursive: true });
-    await copyDirectoryReplacing(artifact.artifactPath, activePath);
-    await removePath(disabledPath);
-
-    results.push({
-      integrationId: integration.id,
-      skillIdentity: artifact.skillIdentity,
-      status: "installed",
-    });
+    return results;
+  } finally {
+    await artifact.cleanup?.();
   }
-
-  return results;
 }
 
 async function validateArtifact(artifact: ResolvedSkillArtifact): Promise<void> {

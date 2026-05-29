@@ -38,6 +38,28 @@ describe("disableSkill", () => {
       "# Diagnose\n",
     );
   });
+
+  it("refuses to disable a suspicious folder without SKILL.md", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const rootPath = join(workspace, "codex");
+    const activeSkillsPath = join(rootPath, "skills");
+    const disabledSkillsPath = join(rootPath, ".xcode-skills", "disabled");
+    await mkdir(join(activeSkillsPath, "not-a-skill"), { recursive: true });
+
+    const integration: IntegrationRoot = {
+      id: "codex",
+      rootPath,
+      activated: true,
+      activeSkillsPath,
+      disabledSkillsPath,
+    };
+
+    await expect(disableSkill(integration, "not-a-skill")).resolves.toEqual({
+      integrationId: "codex",
+      skillIdentity: "not-a-skill",
+      status: "suspicious",
+    });
+  });
 });
 
 describe("enableSkill", () => {
@@ -70,5 +92,27 @@ describe("enableSkill", () => {
     await expect(readFile(join(activeSkillPath, "SKILL.md"), "utf8")).resolves.toBe(
       "# Diagnose\n",
     );
+  });
+
+  it("refuses to enable a suspicious disabled folder without SKILL.md", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const rootPath = join(workspace, "codex");
+    const activeSkillsPath = join(rootPath, "skills");
+    const disabledSkillsPath = join(rootPath, ".xcode-skills", "disabled");
+    await mkdir(join(disabledSkillsPath, "not-a-skill"), { recursive: true });
+
+    const integration: IntegrationRoot = {
+      id: "codex",
+      rootPath,
+      activated: true,
+      activeSkillsPath,
+      disabledSkillsPath,
+    };
+
+    await expect(enableSkill(integration, "not-a-skill")).resolves.toEqual({
+      integrationId: "codex",
+      skillIdentity: "not-a-skill",
+      status: "suspicious",
+    });
   });
 });

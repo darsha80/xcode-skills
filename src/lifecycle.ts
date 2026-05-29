@@ -8,8 +8,10 @@ export type LifecycleStatus =
   | "disabled"
   | "already-enabled"
   | "already-disabled"
+  | "not-activated"
   | "not-installed"
-  | "conflict";
+  | "conflict"
+  | "suspicious";
 
 export type LifecycleResult = {
   integrationId: IntegrationRoot["id"];
@@ -21,6 +23,14 @@ export async function disableSkill(
   integration: IntegrationRoot,
   skillIdentity: string,
 ): Promise<LifecycleResult> {
+  if (!integration.activated) {
+    return {
+      integrationId: integration.id,
+      skillIdentity,
+      status: "not-activated",
+    };
+  }
+
   const activePath = join(integration.activeSkillsPath, skillIdentity);
   const disabledPath = join(integration.disabledSkillsPath, skillIdentity);
   const activeExists = await pathExists(activePath);
@@ -50,6 +60,14 @@ export async function disableSkill(
     };
   }
 
+  if (!(await pathExists(join(activePath, "SKILL.md")))) {
+    return {
+      integrationId: integration.id,
+      skillIdentity,
+      status: "suspicious",
+    };
+  }
+
   await mkdir(integration.disabledSkillsPath, { recursive: true });
   await rename(activePath, disabledPath);
 
@@ -64,6 +82,14 @@ export async function enableSkill(
   integration: IntegrationRoot,
   skillIdentity: string,
 ): Promise<LifecycleResult> {
+  if (!integration.activated) {
+    return {
+      integrationId: integration.id,
+      skillIdentity,
+      status: "not-activated",
+    };
+  }
+
   const activePath = join(integration.activeSkillsPath, skillIdentity);
   const disabledPath = join(integration.disabledSkillsPath, skillIdentity);
   const activeExists = await pathExists(activePath);
@@ -90,6 +116,14 @@ export async function enableSkill(
       integrationId: integration.id,
       skillIdentity,
       status: "not-installed",
+    };
+  }
+
+  if (!(await pathExists(join(disabledPath, "SKILL.md")))) {
+    return {
+      integrationId: integration.id,
+      skillIdentity,
+      status: "suspicious",
     };
   }
 

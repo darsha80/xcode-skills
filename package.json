@@ -6,6 +6,7 @@
     "xcode-skills": "./dist/cli.js"
   },
   "scripts": {
+    "build": "tsc",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

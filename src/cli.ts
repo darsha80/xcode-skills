@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url";
+import { createInterface } from "node:readline/promises";
 
 import type { SkillArtifactResolver } from "./install.js";
 import { type InstallResult, installSkill } from "./install.js";
@@ -43,7 +44,7 @@ export async function runCli(
     const selectedIntegrations = await selectTargetIntegrations({
       integrations,
       target: parsed.target,
-      promptForTarget: dependencies.promptForTarget,
+      promptForTarget: dependencies.promptForTarget ?? promptForTargetFromStdin,
     });
 
     if (parsed.command === "install") {
@@ -177,4 +178,27 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     process.stderr.write(`${result.stderr}\n`);
   }
   process.exitCode = result.exitCode;
+}
+
+async function promptForTargetFromStdin(): Promise<TargetSelection> {
+  const readline = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    const answer = (
+      await readline.question("Target Agent Integration (codex/claude/both): ")
+    )
+      .trim()
+      .toLowerCase();
+
+    if (answer === "codex" || answer === "claude" || answer === "both") {
+      return answer;
+    }
+
+    throw new Error(`Invalid target: ${answer}`);
+  } finally {
+    readline.close();
+  }
 }

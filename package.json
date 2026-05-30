@@ -1,12 +1,23 @@
 {
   "name": "xcode-skills",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Manage Agent Skills for Xcode's Codex and Claude Coding Assistant integrations.",
   "type": "module",
+  "license": "MIT",
   "bin": {
     "xcode-skills": "./dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm test && npm run typecheck && npm run build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

@@ -5,7 +5,7 @@
   "type": "module",
   "license": "MIT",
   "bin": {
-    "xcode-skills": "./dist/cli.js"
+    "xcode-skills": "dist/cli.js"
   },
   "files": [
     "dist",

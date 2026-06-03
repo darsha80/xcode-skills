@@ -154,6 +154,47 @@ describe("scanIntegrationSkills", () => {
     ]);
   });
 
+  it("ignores dot-prefixed system folders in active and disabled Skill stores", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const rootPath = join(workspace, "ClaudeAgentConfig");
+    const activeSkillsPath = join(rootPath, "skills");
+    const disabledSkillsPath = join(rootPath, ".xcode-skills", "disabled");
+    const skillPath = join(activeSkillsPath, "diagnose");
+
+    await mkdir(join(activeSkillsPath, ".system"), { recursive: true });
+    await mkdir(join(activeSkillsPath, ".cache"), { recursive: true });
+    await mkdir(join(disabledSkillsPath, ".system"), { recursive: true });
+    await mkdir(skillPath, { recursive: true });
+    await writeFile(join(activeSkillsPath, ".system", "README.md"), "# System skills\n");
+    await writeFile(join(disabledSkillsPath, ".system", "README.md"), "# System skills\n");
+    await writeFile(join(skillPath, "SKILL.md"), "# Diagnose\n");
+
+    const integration: IntegrationRoot = {
+      id: "claude",
+      rootPath,
+      activated: true,
+      activeSkillsPath,
+      disabledSkillsPath,
+    };
+
+    await expect(scanIntegrationSkills(integration)).resolves.toEqual([
+      {
+        skillIdentity: "diagnose",
+        integrationId: "claude",
+        state: "enabled",
+        provenance: {
+          source: null,
+          sourceType: null,
+          computedHash: null,
+        },
+        paths: {
+          active: skillPath,
+          disabled: null,
+        },
+      },
+    ]);
+  });
+
   it("reads provenance from a Skill Lock File inside the Skill Folder", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
     const rootPath = join(workspace, "codex");

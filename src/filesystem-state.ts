@@ -76,7 +76,7 @@ async function readSkillDirectories(path: string): Promise<string[]> {
   }
 
   const directories = await Promise.all(
-    entries.map(async (entry) => {
+    entries.filter((entry) => !entry.startsWith(".")).map(async (entry) => {
       const entryPath = join(path, entry);
       const entryStat = await stat(entryPath);
       return entryStat.isDirectory() ? entry : null;

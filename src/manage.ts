@@ -32,7 +32,7 @@ export function formatManageView(
   tabs: ManageTab[],
   options: ManageViewFormatOptions = {},
 ): string {
-  return tabs
+  const tabOutput = tabs
     .map((tab, tabIndex) => {
       const title = tab.integrationId === "codex" ? "Codex" : "Claude";
       const formattedTitle = options.activeTabIndex === tabIndex ? green(title) : title;
@@ -52,10 +52,15 @@ export function formatManageView(
       ].join("\n");
     })
     .join("\n\n");
+  return [tabOutput, manageControlsHint()].join("\n\n");
 }
 
 function green(value: string): string {
   return `\x1B[32m${value}\x1B[39m`;
+}
+
+function manageControlsHint(): string {
+  return "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | q quit";
 }
 
 export async function runManageSession(

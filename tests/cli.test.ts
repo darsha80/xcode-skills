@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 import type { IntegrationRoot } from "../src/integrations.js";
 import { isCliEntrypoint, parseTargetAnswer, runCli } from "../src/cli.js";
 
+const manageControlsHint =
+  "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | q quit";
+
 describe("runCli", () => {
   it("defaults target prompts to both when the user presses enter", () => {
     expect(parseTargetAnswer("")).toBe("both");
@@ -299,7 +302,7 @@ describe("runCli", () => {
 
     expect(result).toEqual({
       exitCode: 0,
-      stdout: "Codex\n  diagnose  enabled\n\nClaude\n  not activated in Xcode",
+      stdout: `Codex\n  diagnose  enabled\n\nClaude\n  not activated in Xcode\n\n${manageControlsHint}`,
       stderr: "",
     });
   });

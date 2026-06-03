@@ -117,8 +117,14 @@ describe("manage adapter", () => {
 
     expect(renders[0]).toContain("\x1B[32mCodex\x1B[39m");
     expect(renders[0]).toContain("> diagnose  enabled");
+    expect(renders[0]).toContain(
+      "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | q quit",
+    );
     expect(renders[1]).toContain("\x1B[32mClaude\x1B[39m");
     expect(renders[1]).toContain("> handoff  enabled");
+    expect(renders[1]).toContain(
+      "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | q quit",
+    );
   });
 });
 

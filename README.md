@@ -17,20 +17,21 @@ Xcode must activate an integration first. This tool will not create missing inte
 
 ## Install
 
-From this repo:
-
-```sh
-npm install
-npm run build
-npm link
-```
-
-After npm publication, install with:
+We suggest installing this globally so that you can easily add skills to Xcode:
 
 ```sh
 npm install -g xcode-skills
 ```
 
+From this repo:
+Clone the repo, cd the root folder.
+
+```sh
+npm install
+npm run build
+npm link
+
+```
 ## Commands
 
 ```sh

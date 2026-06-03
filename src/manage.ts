@@ -35,7 +35,7 @@ export function formatManageView(
   return tabs
     .map((tab, tabIndex) => {
       const title = tab.integrationId === "codex" ? "Codex" : "Claude";
-      const formattedTitle = options.activeTabIndex === tabIndex ? `[${title}]` : title;
+      const formattedTitle = options.activeTabIndex === tabIndex ? green(title) : title;
       if (!tab.activated) {
         return `${formattedTitle}\n  not activated in Xcode`;
       }
@@ -52,6 +52,10 @@ export function formatManageView(
       ].join("\n");
     })
     .join("\n\n");
+}
+
+function green(value: string): string {
+  return `\x1B[32m${value}\x1B[39m`;
 }
 
 export async function runManageSession(

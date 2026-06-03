@@ -43,7 +43,7 @@ Target behavior:
 - `--target codex`: non-interactive, Codex only
 - `--target claude`: non-interactive, Claude only
 - `--target both`: non-interactive, both integrations
-- no `--target`: prompt for Codex, Claude, or both
+- no `--target`: prompt for Codex, Claude, or both, defaulting to `both` on Enter
 
 If `both` is selected and one integration is not activated, install into activated integrations and warn about missing integrations. If a single explicit target is not activated, fail.
 

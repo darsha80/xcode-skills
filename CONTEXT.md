@@ -100,7 +100,7 @@ Domain expert: "No. Xcode must activate the Agent Integration first; this projec
 
 Developer: "What happens if I do not pass a target?"
 
-Domain expert: "xcode-skills asks which Target Agent Integration to use. Passing a target makes the operation non-interactive."
+Domain expert: "xcode-skills asks which Target Agent Integration to use and defaults to both when the developer presses Enter. Passing a target makes the operation non-interactive."
 
 Developer: "Does disabling a skill only stop automatic model invocation?"
 

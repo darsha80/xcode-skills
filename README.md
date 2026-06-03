@@ -52,7 +52,7 @@ Write commands accept:
 --verbose
 ```
 
-If `--target` is omitted for a write command, `xcode-skills` prompts for Codex, Claude, or both.
+If `--target` is omitted for a write command, `xcode-skills` prompts for Codex, Claude, or both. The prompt defaults to `both` when you press Enter.
 
 `list` is read-only, does not prompt by default, and supports:
 

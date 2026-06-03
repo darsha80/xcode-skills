@@ -298,20 +298,26 @@ async function promptForTargetFromStdin(): Promise<TargetSelection> {
   });
 
   try {
-    const answer = (
-      await readline.question("Target Agent Integration (codex/claude/both): ")
-    )
-      .trim()
-      .toLowerCase();
-
-    if (answer === "codex" || answer === "claude" || answer === "both") {
-      return answer;
-    }
-
-    throw new Error(`Invalid target: ${answer}`);
+    return parseTargetAnswer(
+      await readline.question("Target Agent Integration (codex/claude/both) [both]: "),
+    );
   } finally {
     readline.close();
   }
+}
+
+export function parseTargetAnswer(answer: string): TargetSelection {
+  const normalized = answer.trim().toLowerCase();
+
+  if (normalized === "") {
+    return "both";
+  }
+
+  if (normalized === "codex" || normalized === "claude" || normalized === "both") {
+    return normalized;
+  }
+
+  throw new Error(`Invalid target: ${normalized}`);
 }
 
 async function confirmWithDependencies(

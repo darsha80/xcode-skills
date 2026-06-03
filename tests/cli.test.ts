@@ -5,9 +5,16 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type { IntegrationRoot } from "../src/integrations.js";
-import { isCliEntrypoint, runCli } from "../src/cli.js";
+import { isCliEntrypoint, parseTargetAnswer, runCli } from "../src/cli.js";
 
 describe("runCli", () => {
+  it("defaults target prompts to both when the user presses enter", () => {
+    expect(parseTargetAnswer("")).toBe("both");
+    expect(parseTargetAnswer("  \n")).toBe("both");
+    expect(parseTargetAnswer("codex")).toBe("codex");
+    expect(parseTargetAnswer("Claude")).toBe("claude");
+  });
+
   it("detects npm bin symlink invocation as the CLI entrypoint", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
     const cliPath = join(workspace, "lib", "node_modules", "xcode-skills", "dist", "cli.js");

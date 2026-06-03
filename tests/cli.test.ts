@@ -1,12 +1,27 @@
-import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, stat, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type { IntegrationRoot } from "../src/integrations.js";
-import { runCli } from "../src/cli.js";
+import { isCliEntrypoint, runCli } from "../src/cli.js";
 
 describe("runCli", () => {
+  it("detects npm bin symlink invocation as the CLI entrypoint", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const cliPath = join(workspace, "lib", "node_modules", "xcode-skills", "dist", "cli.js");
+    const binPath = join(workspace, "bin", "xcode-skills");
+    await mkdir(join(workspace, "bin"), { recursive: true });
+    await mkdir(join(workspace, "lib", "node_modules", "xcode-skills", "dist"), {
+      recursive: true,
+    });
+    await writeFile(cliPath, "#!/usr/bin/env node\n");
+    await symlink(cliPath, binPath);
+
+    await expect(isCliEntrypoint(pathToFileURL(cliPath).href, binPath)).resolves.toBe(true);
+  });
+
   it("prints list output as JSON", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
     const codex = integration("codex", join(workspace, "codex"), true);
@@ -216,6 +231,52 @@ describe("runCli", () => {
     expect(result.stdout).toContain("command: node skills add diagnose --copy --yes");
     expect(result.stdout).toContain("stdout: resolver out");
     expect(result.stdout).toContain("stderr: resolver err");
+  });
+
+  it("includes resolver diagnostics when verbose install fails", async () => {
+    const result = await runCli(["install", "diagnose", "--target", "codex", "--verbose"], {
+      resolveIntegrationRoots: async () => [integration("codex", "/tmp/codex", true)],
+      createResolver: (onVerbose) => async () => {
+        onVerbose?.("workspace: /tmp/xcode-skills-abc");
+        onVerbose?.("command: node skills add diagnose --copy --yes");
+        throw new Error("resolver failed");
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("resolver failed");
+    expect(result.stderr).toContain("workspace: /tmp/xcode-skills-abc");
+    expect(result.stderr).toContain("command: node skills add diagnose --copy --yes");
+  });
+
+  it("emits verbose resolver diagnostics live instead of appending duplicates", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const artifactPath = join(workspace, "artifact", "diagnose");
+    await mkdir(artifactPath, { recursive: true });
+    await writeFile(join(artifactPath, "SKILL.md"), "# Diagnose\n");
+    const codex = integration("codex", join(workspace, "codex"), true);
+    await mkdir(codex.rootPath, { recursive: true });
+    const emitted: string[] = [];
+
+    const result = await runCli(["install", "diagnose", "--target", "codex", "--verbose"], {
+      resolveIntegrationRoots: async () => [codex],
+      emitVerboseLine: (line) => emitted.push(line),
+      createResolver: (onVerbose) => async () => {
+        onVerbose?.("workspace: /tmp/xcode-skills-abc");
+        onVerbose?.("command: node skills add diagnose --copy --yes");
+        return { skillIdentity: "diagnose", artifactPath };
+      },
+    });
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: "Codex: installed diagnose",
+      stderr: "",
+    });
+    expect(emitted).toEqual([
+      "workspace: /tmp/xcode-skills-abc",
+      "command: node skills add diagnose --copy --yes",
+    ]);
   });
 
   it("renders the manage view instead of treating manage as an unknown command", async () => {

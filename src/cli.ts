@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { pathToFileURL } from "node:url";
+import { realpath } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
 
 import type { SkillArtifactResolver } from "./install.js";
@@ -22,6 +23,7 @@ export type CliDependencies = {
   resolveIntegrationRoots?: () => Promise<IntegrationRoot[]>;
   resolver?: SkillArtifactResolver;
   createResolver?: (onVerbose?: (line: string) => void) => SkillArtifactResolver;
+  emitVerboseLine?: (line: string) => void;
   promptForTarget?: PromptForTarget;
   confirm?: (message: string) => Promise<boolean>;
   readManageKey?: () => Promise<string>;
@@ -31,10 +33,18 @@ export async function runCli(
   argv: string[],
   dependencies: CliDependencies = {},
 ): Promise<CliResult> {
+  const verboseLines: string[] = [];
+  let verbose = false;
+  const recordVerbose = (line: string) => {
+    verboseLines.push(line);
+    dependencies.emitVerboseLine?.(line);
+  };
+  const shouldAppendVerbose = () => verbose && dependencies.emitVerboseLine === undefined;
+
   try {
     const parsed = parseArgs(argv);
+    verbose = parsed.verbose;
     const integrations = await (dependencies.resolveIntegrationRoots ?? resolveIntegrationRoots)();
-    const verboseLines: string[] = [];
 
     if (parsed.command === "list") {
       const entries = await listSkillInstallations(integrations, { target: parsed.target });
@@ -80,10 +90,10 @@ export async function runCli(
     if (parsed.command === "install") {
       const resolver =
         dependencies.resolver ??
-        dependencies.createResolver?.((line) => verboseLines.push(line)) ??
+        dependencies.createResolver?.(recordVerbose) ??
         ((skillSpec: string) =>
           resolveSkillArtifactWithCli(skillSpec, {
-            onVerbose: parsed.verbose ? (line) => verboseLines.push(line) : undefined,
+            onVerbose: parsed.verbose ? recordVerbose : undefined,
           }));
       const results = await installSkill({
         skillSpec: skillArg,
@@ -96,7 +106,7 @@ export async function runCli(
             ? undefined
             : (path) => confirmWithDependencies(dependencies, `overwrite manual Skill Folder?\n  ${path}`),
       });
-      return ok(withVerbose(formatInstallResults(results), parsed.verbose ? verboseLines : []));
+      return ok(withVerbose(formatInstallResults(results), shouldAppendVerbose() ? verboseLines : []));
     }
 
     if (parsed.command === "enable" || parsed.command === "disable") {
@@ -142,7 +152,7 @@ export async function runCli(
 
     return fail(`Unknown command: ${parsed.command}`);
   } catch (error) {
-    return fail(error instanceof Error ? error.message : String(error));
+    return fail(withVerbose(error instanceof Error ? error.message : String(error), shouldAppendVerbose() ? verboseLines : []));
   }
 }
 
@@ -245,8 +255,33 @@ function displayIntegration(id: IntegrationRoot["id"]): string {
   return id === "codex" ? "Codex" : "Claude";
 }
 
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const result = await runCli(process.argv.slice(2));
+export async function isCliEntrypoint(
+  moduleUrl: string = import.meta.url,
+  argvPath: string | undefined = process.argv[1],
+  resolveRealPath: (path: string) => Promise<string> = realpath,
+): Promise<boolean> {
+  if (argvPath === undefined) {
+    return false;
+  }
+
+  const modulePath = fileURLToPath(moduleUrl);
+  try {
+    const [resolvedModulePath, resolvedArgvPath] = await Promise.all([
+      resolveRealPath(modulePath),
+      resolveRealPath(argvPath),
+    ]);
+    return resolvedModulePath === resolvedArgvPath;
+  } catch {
+    return modulePath === argvPath;
+  }
+}
+
+if (await isCliEntrypoint()) {
+  const result = await runCli(process.argv.slice(2), {
+    emitVerboseLine: (line) => {
+      process.stderr.write(`${line}\n`);
+    },
+  });
   if (result.stdout.length > 0) {
     process.stdout.write(`${result.stdout}\n`);
   }

@@ -42,7 +42,8 @@ export function formatManageView(
       if (tab.skills.length === 0) {
         return `${formattedTitle}\n  no skills`;
       }
-      const selectedSkillIndex = options.selectedSkillIndexes?.[tabIndex] ?? -1;
+      const selectedSkillIndex =
+        options.activeTabIndex === tabIndex ? (options.selectedSkillIndexes?.[tabIndex] ?? -1) : -1;
       return [
         formattedTitle,
         ...tab.skills.map((skill, skillIndex) => {

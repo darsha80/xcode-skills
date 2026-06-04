@@ -115,9 +115,10 @@ Controls:
 - `Tab`: switch Codex/Claude tab
 - `Up` / `Down` or `k` / `j`: move selection
 - `Space` / `Enter`: toggle enabled/disabled for the selected skill
+- `u`: uninstall the selected skill after y/N confirmation
 - `q`: quit
 
-The TUI shows inactive integrations, conflicts, and suspicious folders. It does not install or uninstall skills.
+The TUI shows inactive integrations, conflicts, and suspicious folders. It can uninstall visible skills after confirmation, but it does not install skills.
 
 ## State Model
 

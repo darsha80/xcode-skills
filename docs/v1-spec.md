@@ -79,7 +79,7 @@ List shows enabled, disabled, conflict, suspicious, and unknown-provenance state
 
 ### `xcode-skills manage`
 
-TUI for inspecting and toggling enabled/disabled state. It is built after the core CLI commands and reuses the same lifecycle operations.
+TUI for inspecting, toggling enabled/disabled state, and uninstalling visible Skill Installations after confirmation. It is built after the core CLI commands and reuses the same lifecycle and uninstall operations.
 
 TUI behavior:
 
@@ -88,7 +88,8 @@ TUI behavior:
 - keyboard-first controls, mouse support if cheap
 - write changes immediately
 - show conflicts but do not repair them
-- no install or uninstall in v1
+- uninstall requires y/N confirmation with no as the default
+- no install in v1
 
 ## Shared Flags
 
@@ -136,4 +137,3 @@ Not in v1:
 - write-command JSON output
 - conflict repair command
 - installing from the TUI
-- uninstalling from the TUI

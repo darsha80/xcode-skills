@@ -8,7 +8,7 @@ import type { IntegrationRoot } from "../src/integrations.js";
 import { isCliEntrypoint, parseTargetAnswer, runCli } from "../src/cli.js";
 
 const manageControlsHint =
-  "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | q quit";
+  "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | u uninstall | q quit";
 
 describe("runCli", () => {
   it("defaults target prompts to both when the user presses enter", () => {

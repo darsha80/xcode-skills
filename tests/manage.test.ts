@@ -6,6 +6,9 @@ import { describe, expect, it } from "vitest";
 import type { IntegrationRoot } from "../src/integrations.js";
 import { buildManageView, runManageSession, toggleManagedSkill } from "../src/manage.js";
 
+const manageControlsHint =
+  "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | u uninstall | q quit";
+
 describe("manage adapter", () => {
   it("builds Codex and Claude tabs and marks inactive integrations", async () => {
     const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
@@ -45,6 +48,58 @@ describe("manage adapter", () => {
       status: "disabled",
     });
     await expect(stat(join(codex.disabledSkillsPath, "diagnose"))).resolves.toBeDefined();
+  });
+
+  it("uninstalls a selected skill after explicit confirmation", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const codex = integration("codex", join(workspace, "codex"), true);
+    const skillPath = join(codex.activeSkillsPath, "diagnose");
+    await mkdir(skillPath, { recursive: true });
+    await writeFile(join(skillPath, "SKILL.md"), "# Diagnose\n");
+    const keys = ["u", "y", "q"];
+    const renders: string[] = [];
+
+    const output = await runManageSession([codex], {
+      readKey: async () => keys.shift() ?? "q",
+      render: (screen) => renders.push(screen),
+    });
+
+    expect(renders[1]).toContain("Uninstall diagnose from Codex?");
+    expect(renders[1]).toContain(skillPath);
+    expect(renders[1]).toContain("Continue? (y/N)");
+    expect(output).toContain("no skills");
+    await expect(stat(skillPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("keeps the selected skill when uninstall confirmation defaults to no", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const codex = integration("codex", join(workspace, "codex"), true);
+    const skillPath = join(codex.activeSkillsPath, "diagnose");
+    await mkdir(skillPath, { recursive: true });
+    await writeFile(join(skillPath, "SKILL.md"), "# Diagnose\n");
+    const keys = ["u", "\r", "q"];
+
+    const output = await runManageSession([codex], {
+      readKey: async () => keys.shift() ?? "q",
+    });
+
+    expect(output).toContain("diagnose  enabled");
+    await expect(stat(skillPath)).resolves.toBeDefined();
+  });
+
+  it("uses uninstall as the cleanup path for suspicious folders", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const codex = integration("codex", join(workspace, "codex"), true);
+    const skillPath = join(codex.activeSkillsPath, "not-a-skill");
+    await mkdir(skillPath, { recursive: true });
+    const keys = ["u", "y", "q"];
+
+    const output = await runManageSession([codex], {
+      readKey: async () => keys.shift() ?? "q",
+    });
+
+    expect(output).toContain("no skills");
+    await expect(stat(skillPath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("renders before and after keyboard toggles", async () => {
@@ -118,15 +173,11 @@ describe("manage adapter", () => {
     expect(renders[0]).toContain("\x1B[32mCodex\x1B[39m");
     expect(renders[0]).toContain("> diagnose  enabled");
     expect(renders[0]).toContain("  handoff  enabled");
-    expect(renders[0]).toContain(
-      "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | q quit",
-    );
+    expect(renders[0]).toContain(manageControlsHint);
     expect(renders[1]).toContain("\x1B[32mClaude\x1B[39m");
     expect(renders[1]).toContain("  diagnose  enabled");
     expect(renders[1]).toContain("> handoff  enabled");
-    expect(renders[1]).toContain(
-      "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | q quit",
-    );
+    expect(renders[1]).toContain(manageControlsHint);
   });
 });
 

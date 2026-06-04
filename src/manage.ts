@@ -1,6 +1,7 @@
 import { scanIntegrationSkills, type ScannedSkillInstallation } from "./filesystem-state.js";
 import type { IntegrationRoot } from "./integrations.js";
 import { disableSkill, enableSkill, type LifecycleResult } from "./lifecycle.js";
+import { uninstallSkill } from "./uninstall.js";
 
 export type ManageTab = {
   integrationId: IntegrationRoot["id"];
@@ -16,6 +17,13 @@ export type ManageSessionOptions = {
 export type ManageViewFormatOptions = {
   activeTabIndex?: number;
   selectedSkillIndexes?: number[];
+  pendingUninstall?: ManageUninstallConfirmation;
+};
+
+export type ManageUninstallConfirmation = {
+  integrationId: IntegrationRoot["id"];
+  skillIdentity: string;
+  removedPaths: string[];
 };
 
 export async function buildManageView(integrations: IntegrationRoot[]): Promise<ManageTab[]> {
@@ -53,7 +61,11 @@ export function formatManageView(
       ].join("\n");
     })
     .join("\n\n");
-  return [tabOutput, manageControlsHint()].join("\n\n");
+  const uninstallPrompt =
+    options.pendingUninstall === undefined
+      ? undefined
+      : formatUninstallConfirmation(options.pendingUninstall);
+  return [tabOutput, uninstallPrompt, manageControlsHint()].filter(Boolean).join("\n\n");
 }
 
 function green(value: string): string {
@@ -61,7 +73,15 @@ function green(value: string): string {
 }
 
 function manageControlsHint(): string {
-  return "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | q quit";
+  return "Controls: Tab switch Codex/Claude | Up/Down or k/j move | Space/Enter toggle | u uninstall | q quit";
+}
+
+function formatUninstallConfirmation(confirmation: ManageUninstallConfirmation): string {
+  return [
+    `Uninstall ${confirmation.skillIdentity} from ${displayIntegration(confirmation.integrationId)}?`,
+    ...confirmation.removedPaths.map((path) => `  ${path}`),
+    "Continue? (y/N)",
+  ].join("\n");
 }
 
 export async function runManageSession(
@@ -71,10 +91,28 @@ export async function runManageSession(
   let activeTabIndex = 0;
   const selectedSkillIndexes = integrations.map(() => 0);
   let latestView = await buildManageView(integrations);
+  let pendingUninstall: ManageUninstallConfirmation | undefined;
   options.render?.(formatManageView(latestView, { activeTabIndex, selectedSkillIndexes }));
 
   while (true) {
     const key = await options.readKey();
+    if (pendingUninstall !== undefined) {
+      if (key === "y" || key === "Y") {
+        const integration = integrations[activeTabIndex];
+        if (integration !== undefined) {
+          await uninstallSkill(integration, pendingUninstall.skillIdentity, { yes: true });
+          latestView = await buildManageView(integrations);
+          selectedSkillIndexes[activeTabIndex] = Math.min(
+            selectedSkillIndexes[activeTabIndex] ?? 0,
+            Math.max((latestView[activeTabIndex]?.skills.length ?? 1) - 1, 0),
+          );
+        }
+      }
+      pendingUninstall = undefined;
+      options.render?.(formatManageView(latestView, { activeTabIndex, selectedSkillIndexes }));
+      continue;
+    }
+
     if (key === "q") {
       return formatManageView(latestView);
     }
@@ -101,6 +139,33 @@ export async function runManageSession(
         selectedSkillIndexes[activeTabIndex] =
           ((selectedSkillIndexes[activeTabIndex] ?? 0) - 1 + skillCount) % skillCount;
         options.render?.(formatManageView(latestView, { activeTabIndex, selectedSkillIndexes }));
+      }
+      continue;
+    }
+
+    if (key === "u") {
+      const tab = latestView[activeTabIndex];
+      const selectedSkillIndex = selectedSkillIndexes[activeTabIndex] ?? 0;
+      const selectedSkill = tab?.skills[selectedSkillIndex];
+      const integration = integrations[activeTabIndex];
+      if (tab?.activated === true && integration !== undefined && selectedSkill !== undefined) {
+        const result = await uninstallSkill(integration, selectedSkill.skillIdentity, {
+          dryRun: true,
+        });
+        if (result.removedPaths.length > 0) {
+          pendingUninstall = {
+            integrationId: result.integrationId,
+            skillIdentity: result.skillIdentity,
+            removedPaths: result.removedPaths,
+          };
+          options.render?.(
+            formatManageView(latestView, {
+              activeTabIndex,
+              selectedSkillIndexes,
+              pendingUninstall,
+            }),
+          );
+        }
       }
       continue;
     }
@@ -149,4 +214,8 @@ export async function toggleManagedSkill(
     skillIdentity,
     status: current?.state ?? "not-installed",
   };
+}
+
+function displayIntegration(id: IntegrationRoot["id"]): string {
+  return id === "codex" ? "Codex" : "Claude";
 }

@@ -1,6 +1,6 @@
 {
   "name": "xcode-skills",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Manage Agent Skills for Xcode's Codex and Claude Coding Assistant integrations.",
   "repository": {
     "type": "git",

@@ -75,6 +75,72 @@ describe("runCli", () => {
     });
   });
 
+  it("passes a quoted pasted npx skills add command to the resolver", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const artifactPath = join(workspace, "artifact", "diagnose");
+    await mkdir(artifactPath, { recursive: true });
+    await writeFile(join(artifactPath, "SKILL.md"), "# Diagnose\n");
+    const codex = integration("codex", join(workspace, "codex"), true);
+    await mkdir(codex.rootPath, { recursive: true });
+    const pastedCommand = "npx skills add https://github.com/acme/skills.git --skill diagnose";
+    const resolvedSpecs: string[] = [];
+
+    const result = await runCli(["install", pastedCommand, "--target", "codex"], {
+      resolveIntegrationRoots: async () => [codex],
+      resolver: async (skillSpec) => {
+        resolvedSpecs.push(skillSpec);
+        return { skillIdentity: "diagnose", artifactPath };
+      },
+    });
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: "Codex: installed diagnose",
+      stderr: "",
+    });
+    expect(resolvedSpecs).toEqual([pastedCommand]);
+  });
+
+  it("passes an unquoted pasted npx skills add command to the resolver", async () => {
+    const workspace = await mkdtemp(join(tmpdir(), "xcode-skills-"));
+    const artifactPath = join(workspace, "artifact", "diagnose");
+    await mkdir(artifactPath, { recursive: true });
+    await writeFile(join(artifactPath, "SKILL.md"), "# Diagnose\n");
+    const codex = integration("codex", join(workspace, "codex"), true);
+    await mkdir(codex.rootPath, { recursive: true });
+    const resolvedSpecs: string[] = [];
+
+    const result = await runCli(
+      [
+        "install",
+        "npx",
+        "skills",
+        "add",
+        "https://github.com/acme/skills.git",
+        "--skill",
+        "diagnose",
+        "--target",
+        "codex",
+      ],
+      {
+        resolveIntegrationRoots: async () => [codex],
+        resolver: async (skillSpec) => {
+          resolvedSpecs.push(skillSpec);
+          return { skillIdentity: "diagnose", artifactPath };
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: "Codex: installed diagnose",
+      stderr: "",
+    });
+    expect(resolvedSpecs).toEqual([
+      "npx skills add https://github.com/acme/skills.git --skill diagnose",
+    ]);
+  });
+
   it("fails before lifecycle work when a single explicit target is not activated", async () => {
     const claude = integration("claude", "/tmp/claude", false);
 

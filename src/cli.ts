@@ -70,15 +70,28 @@ export async function runCli(
       return ok(formatManageView(await buildManageView(integrations)));
     }
 
-    const skillArg = parsed.args[0];
+    const skillArg = skillArgumentForCommand(parsed.command, parsed.args);
     if (skillArg === undefined) {
       return fail(`Missing required argument for ${parsed.command}`);
     }
     if (
       ["install", "uninstall", "enable", "disable"].includes(parsed.command) &&
+      skillArg === undefined
+    ) {
+      return fail(`${parsed.command} accepts exactly one skill argument`);
+    }
+    if (
+      ["uninstall", "enable", "disable"].includes(parsed.command) &&
       parsed.args.length !== 1
     ) {
       return fail(`${parsed.command} accepts exactly one skill argument`);
+    }
+    if (
+      parsed.command === "install" &&
+      parsed.args.length !== 1 &&
+      !isPastedNpxSkillsAddArgs(parsed.args)
+    ) {
+      return fail("install accepts exactly one skill argument");
     }
 
     const selectedIntegrations = await selectTargetIntegrations({
@@ -154,6 +167,18 @@ export async function runCli(
   } catch (error) {
     return fail(withVerbose(error instanceof Error ? error.message : String(error), shouldAppendVerbose() ? verboseLines : []));
   }
+}
+
+function skillArgumentForCommand(command: string, args: string[]): string | undefined {
+  if (command === "install" && isPastedNpxSkillsAddArgs(args)) {
+    return args.join(" ");
+  }
+
+  return args[0];
+}
+
+function isPastedNpxSkillsAddArgs(args: string[]): boolean {
+  return args.length >= 3 && args[0] === "npx" && args[1] === "skills" && args[2] === "add";
 }
 
 type ParsedArgs = {

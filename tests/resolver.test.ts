@@ -49,6 +49,34 @@ describe("resolveSkillArtifactWithCli", () => {
     await expect(stat(createdWorkspaces[0]!)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("invokes the local skills CLI with pasted npx skills add arguments", async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), "xcode-skills-test-"));
+    const skillUrl = "https://github.com/acme/skills.git";
+
+    await resolveSkillArtifactWithCli(`npx skills add ${skillUrl} --skill diagnose`, {
+      tempRoot,
+      skillsCliPath: "/fake/skills/bin/cli.mjs",
+      runCommand: async (command) => {
+        expect(command.executable).toBe(process.execPath);
+        expect(command.args).toEqual([
+          "/fake/skills/bin/cli.mjs",
+          "add",
+          skillUrl,
+          "--skill",
+          "diagnose",
+          "--copy",
+          "--yes",
+        ]);
+
+        const skillPath = join(command.cwd, ".agents", "skills", "diagnose");
+        await mkdir(skillPath, { recursive: true });
+        await writeFile(join(skillPath, "SKILL.md"), "# Diagnose\n");
+
+        return { exitCode: 0, stdout: "ok", stderr: "" };
+      },
+    });
+  });
+
   it("cleans up the Ephemeral Resolution Workspace when the resolver command fails", async () => {
     const tempRoot = await mkdtemp(join(tmpdir(), "xcode-skills-test-"));
     const removedWorkspaces: string[] = [];

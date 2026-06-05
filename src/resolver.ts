@@ -40,9 +40,10 @@ export async function resolveSkillArtifactWithCli(
   const skillsCliPath = options.skillsCliPath ?? defaultSkillsCliPath();
 
   try {
+    const addArgs = resolveSkillsAddArgs(skillSpec);
     const invocation = {
       executable: process.execPath,
-      args: [skillsCliPath, "add", skillSpec, "--copy", "--yes"],
+      args: [skillsCliPath, "add", ...addArgs, "--copy", "--yes"],
       cwd: workspace,
     };
     options.onVerbose?.(`workspace: ${workspace}`);
@@ -83,6 +84,75 @@ export async function resolveSkillArtifactWithCli(
     await removeWorkspace(workspace);
     throw error;
   }
+}
+
+export function resolveSkillsAddArgs(skillSpec: string): string[] {
+  const words = parseShellWords(skillSpec.trim());
+  if (words.length >= 3 && words[0] === "npx" && words[1] === "skills" && words[2] === "add") {
+    const addArgs = words.slice(3);
+    if (addArgs.length === 0) {
+      throw new Error("Pasted npx skills add command is missing a skill spec");
+    }
+    return addArgs;
+  }
+
+  return [skillSpec];
+}
+
+function parseShellWords(input: string): string[] {
+  const words: string[] = [];
+  let current = "";
+  let quote: "'" | "\"" | undefined;
+  let escaped = false;
+
+  for (const char of input) {
+    if (escaped) {
+      current += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\" && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+
+    if (quote !== undefined) {
+      if (char === quote) {
+        quote = undefined;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === "'" || char === "\"") {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current.length > 0) {
+        words.push(current);
+        current = "";
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (escaped) {
+    current += "\\";
+  }
+  if (quote !== undefined) {
+    throw new Error("Unterminated quote in pasted npx skills add command");
+  }
+  if (current.length > 0) {
+    words.push(current);
+  }
+
+  return words;
 }
 
 async function copyLockFileIfPresent(workspace: string, artifactPath: string): Promise<void> {

@@ -11,6 +11,8 @@ Xcode reads skills from fixed Codex and Claude locations. Skills installed for o
 - Codex: `~/Library/Developer/Xcode/CodingAssistant/codex`
 - Claude: `~/Library/Developer/Xcode/CodingAssistant/ClaudeAgentConfig`
 
+Because Xcode read agent skills exclusively in these 2 folders. [Apple documenentation.](https://developer.apple.com/documentation/Xcode/setting-up-coding-intelligence#Customize-the-Claude-Agent-and-Codex-environments)
+
 It does not manage global Codex skills, Claude Code skills, project-local skills, or arbitrary skill folders.
 
 Xcode must activate an integration first. This tool will not create missing integration roots, but it can create skill-management subdirectories inside an activated root.
@@ -32,6 +34,44 @@ npm run build
 npm link
 
 ```
+
+## Find skills with `npx skills find` and install with xcode-skills
+
+Find skills using `npx skills find`, e.g.
+
+```sh
+npx skills find swiftui
+```
+
+then copy the skills id `<owner/repo@skill>` and pass it to `xcode-skills install`
+
+```sh
+xcode-skills install twostraws/swiftui-agent-skill@swiftui-pro
+```
+
+## Find skills on `skills.sh` and install with xcode-skills
+
+on [skills.sh](https://www.skills.sh), search and click the skills you find. Then click the "copy" buttoon for the installation. Next pass the whole thing to `xcode-skills install`, with or whout quotes.
+
+```sh
+xcode-skills install npx skills add https://github.com/mattpocock/skills --skill grill-with-docs
+xcode-skills install "npx skills add https://github.com/mattpocock/skills --skill grill-with-docs"
+```
+
+## Manage TUI
+
+`xcode-skills manage` opens a keyboard-only management view.
+
+Controls:
+
+- `Tab`: switch Codex/Claude tab
+- `Up` / `Down` or `k` / `j`: move selection
+- `Space` / `Enter`: toggle enabled/disabled for the selected skill
+- `u`: uninstall the selected skill after y/N confirmation
+- `q`: quit
+
+The TUI shows inactive integrations, conflicts, and suspicious folders. It can uninstall visible skills after confirmation, but it does not install skills.
+
 ## Commands
 
 ```sh
@@ -106,19 +146,6 @@ Preview a write operation:
 xcode-skills uninstall diagnose --target codex --dry-run
 ```
 
-## Manage TUI
-
-`xcode-skills manage` opens a keyboard-only management view.
-
-Controls:
-
-- `Tab`: switch Codex/Claude tab
-- `Up` / `Down` or `k` / `j`: move selection
-- `Space` / `Enter`: toggle enabled/disabled for the selected skill
-- `u`: uninstall the selected skill after y/N confirmation
-- `q`: quit
-
-The TUI shows inactive integrations, conflicts, and suspicious folders. It can uninstall visible skills after confirmation, but it does not install skills.
 
 ## State Model
 
